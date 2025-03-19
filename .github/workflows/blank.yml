@@ -1,0 +1,724 @@
+# gemini_integration.py
+import os
+import requests  # For making requests to Gemini's API
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "YOUR_GEMINI_API_ENDPOINT" # Replace with Gemini's API endpoint
+
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        response = requests.get(f"{self.base_url}/search?q={query}", headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"Gemini API request failed: {response.status_code}"}
+
+
+# business/app/business_app.py (modified)
+from flask import Flask, request, jsonify
+from .security_utils import generate_quantum_key
+from .xeus_language import XeusSystemLanguage
+from cryptography.hazmat.primitives import serialization
+from .gemini_integration import GeminiInterface
+
+app = Flask(__name__)
+xeus = XeusSystemLanguage()
+# ... Load encryption keys ...
+
+gemini = GeminiInterface(os.getenv("GEMINI_API_KEY")) # Get API key from environment
+
+@app.route('/search', methods=['GET'])
+def search():
+    query = request.args.get('q')
+    gemini_results = gemini.search(query) # Search Gemini
+    xeus_results = xeus.search(query) # Search XEUS (implementation below)
+    merged = merge_results(gemini_results, xeus_results) # Merge Results
+    return jsonify(merged)
+
+# ...Other routes...
+
+def merge_results(gemini_results, xeus_results):
+  # Sophisticated merging logic would go here, prioritizing 
+  # and potentially combining relevant results from both.
+  return {"gemini": gemini_results, "xeus": xeus_results}
+
+
+# business/app/xeus_language.py (modified)
+# ...Existing XEUS code...
+
+def search(self, query):
+    results = []
+    for iso_code, language_data in self.languages.items():
+      # Implement Search Logic here, taking into account encryption
+      # Look for query terms in language_data.vocabulary (decrypted if necessary)
+      # This may involve complex string matching or vector similarity searches for encrypted data.
+      if query in language_data.vocabulary.values():
+          results.append({"iso_code": iso_code, "match": query})
+    return results
+
+nano_tech/
+├── business/
+│   ├── app/
+│   │   ├── business_app.py       # Main application logic
+│   │   ├── security_utils.py     # Cryptography and security functions
+│   │   ├── xeus_language.py      # XEUS language processing
+│   │   └── gemini_integration.py # Gemini API interaction
+│   ├── requirements.txt
+│   └── Dockerfile
+├── k8s/                              # Kubernetes deployment files
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── hpa.yaml
+│   ├── networkpolicy.yaml
+│   ├── secrets.yaml                 # Kubernetes secrets (keys, etc.)
+│   └── prometheus/
+│       ├── prometheus.yml
+│       └── alerts.yml
+├── db/                              # Database scripts
+│   ├── schema.sql
+│   └── backup.sh
+├── Config/                          # Configuration files
+│   ├── config.json
+│   └── cronjobs.txt
+├── Scripts/                         # Additional scripts
+│   ├── AutoUpdateScene.cs
+│   ├── rotate_secrets.sh
+│   └── database_maintenance.sh
+├── Docs/
+│   ├── architecture.md
+│   └── security.md
+├── prometheus/                     # Prometheus configuration
+│   └── grafana-dashboard.json
+├── .github/                         # GitHub actions
+│   └── workflows/
+│       └── ci-cd.yml
+├── deploy.sh
+├── .env.example
+└── README.md
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = os.getenv("GEMINI_API_ENDPOINT", "DEFAULT_ENDPOINT")  # Use env var for flexibility
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            response = requests.get(
+                f"{self.base_url}/search?q={query}",
+                headers=headers,
+                timeout=10  # Prevent hanging requests
+            )
+            response.raise_for_status()  # Raise HTTP errors (e.g., 404, 500)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Gemini API error: {e}")
+            return {"error": str(e)}
+from fuzzywuzzy import process
+
+def search(self, query):
+    results = []
+    for iso_code, language_data in self.languages.items():
+        # Decrypt vocabulary if encrypted
+        vocabulary = self._decrypt_vocabulary(language_data)  # Implement decryption logic
+        # Fuzzy search for partial matches
+        matches = process.extractBests(query, vocabulary.values(), score_cutoff=80)
+        if matches:
+            results.append({
+                "iso_code": iso_code,
+                "matches": [{"term": term, "score": score} for term, score in matches]
+            })
+    return results
+def merge_results(gemini_results, xeus_results):
+    merged = []
+    # Example: Combine and sort by relevance
+    if "error" not in gemini_results:
+        merged.extend(gemini_results.get("results", []))
+    if "error" not in xeus_results:
+        merged.extend(xeus_results)
+    # Sort by a relevance score (implement scoring logic)
+    merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"results": merged}
+
+# Add security headers
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = "default-src 'self';"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gemini-secrets
+type: Opaque
+data:
+  GEMINI_API_KEY: <base64_encoded_api_key>
+from prometheus_client import Histogram
+
+SEARCH_LATENCY = Histogram('search_latency_seconds', 'Search request latency')
+
+@app.route('/search', methods=['GET'])
+def search():
+    start_time = time.time()
+    # ... existing code ...
+    duration = time.time() - start_time
+    SEARCH_LATENCY.observe(duration)
+    return jsonify(merged)
+import os
+import logging
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = os.getenv("GEMINI_API_ENDPOINT", "https://api.gemini.example.com")  # Use env var for flexibility
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            response = requests.get(
+                f"{self.base_url}/search?q={query}",
+                headers=headers,
+                timeout=10  # Prevent hanging requests
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Gemini API error: {e}")
+            return {"error": str(e)}
+flask==2.3.2
+requests==2.31.0
+tenacity==8.2.2
+python-Levenshtein==0.21.0  # For faster fuzzywuzzy
+prometheus-client==0.17.1
+cryptography==41.0.4
+from fuzzywuzzy import process
+
+class XeusSystemLanguage:
+    def __init__(self):
+        self.languages = {}  # Assume this is initialized with encrypted data
+
+    def _decrypt_vocabulary(self, language_data):
+        # Implement decryption logic using cryptography library
+        # Example: decrypt language_data.vocabulary using Fernet
+        return decrypted_vocabulary  # Return decrypted vocabulary as a dictionary
+
+    def search(self, query):
+        results = []
+        for iso_code, language_data in self.languages.items():
+            vocabulary = self._decrypt_vocabulary(language_data)
+            matches = process.extractBests(
+                query,
+                vocabulary.values(),
+                score_cutoff=80,  # Minimum match score (0-100)
+                limit=5  # Max matches per language
+            )
+            if matches:
+                results.append({
+                    "iso_code": iso_code,
+                    "matches": [{"term": term, "score": score} for term, score in matches]
+                })
+        return results
+from flask import Flask, request, jsonify
+from flask_limiter import Limiter  # For rate limiting
+from flask_limiter.util import get_remote_address
+from prometheus_client import Histogram, generate_latest
+from .security_utils import generate_quantum_key
+from .xeus_language import XeusSystemLanguage
+from .gemini_integration import GeminiInterface
+
+app = Flask(__name__)
+limiter = Limiter(app, key_func=get_remote_address, default_limits=["100 per minute"])
+
+# Prometheus Metrics
+SEARCH_LATENCY = Histogram('search_latency_seconds', 'Search request latency')
+
+# Initialize components
+xeus = XeusSystemLanguage()
+# ... Load encryption keys (e.g., from secrets) ...
+
+gemini = GeminiInterface(os.getenv("GEMINI_API_KEY"))
+
+@app.route('/search', methods=['GET'])
+@limiter.limit("50/second")  # Per-second rate limit
+def search():
+    start_time = time.time()
+    query = request.args.get('q', default='', type=str)
+    
+    # Fetch results
+    gemini_results = gemini.search(query)
+    xeus_results = xeus.search(query)
+    
+    # Merge and return
+    merged = merge_results(gemini_results, xeus_results)
+    duration = time.time() - start_time
+    SEARCH_LATENCY.observe(duration)
+    
+    return jsonify(merged)
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return generate_latest()
+
+def merge_results(gemini_results, xeus_results):
+    merged = []
+    # Handle Gemini results (assume "results" key exists)
+    if not isinstance(gemini_results, dict) or "error" in gemini_results:
+        gemini_list = [{"source": "gemini", "data": gemini_results}]
+    else:
+        gemini_list = [{"source": "gemini", "data": item, "score": 0.7} for item in gemini_results.get("results", [])]
+    
+    # Handle XEUS results
+    xeus_list = []
+    for entry in xeus_results:
+        for match in entry["matches"]:
+            xeus_list.append({
+                "source": "xeus",
+                "data": {"iso_code": entry["iso_code"], "term": match["term"]},
+                "score": match["score"] * 0.3  # Weighted score
+            })
+    
+    # Combine and sort by score
+    combined = gemini_list + xeus_list
+    combined.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"results": [item["data"] for item in combined]}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nano-tech-secrets
+type: Opaque
+data:
+  GEMINI_API_KEY: <base64_encoded_api_key>
+  GEMINI_API_ENDPOINT: <base64_encoded_url>
+  ENCRYPTION_KEY: <base64_encoded_encryption_key>
+env:
+  - name: GEMINI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nano-tech-secrets
+        key: GEMINI_API_KEY
+  - name: GEMINI_API_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: nano-tech-secrets
+        key: GEMINI_API_ENDPOINT
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline';"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+import pytest
+from unittest.mock import MagicMock
+from business.app.gemini_integration import GeminiInterface
+
+def test_gemini_search_success():
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"results": ["test"]}
+    mock_response.status_code = 200
+    with patch("requests.get", return_value=mock_response):
+        gemini = GeminiInterface("fake_key")
+        result = gemini.search("test_query")
+        assert result == {"results": ["test"]}
+name: CI/CD Pipeline
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r business/requirements.txt
+      - name: Run tests
+        run: pytest tests/
+      - name: Build Docker image
+        run: docker build -t nano-tech-app:latest -f business/Dockerfile .
+      - name: Push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          registry: docker.io
+          repository: your-username/nano-tech
+          tag: latest
+scrape_configs:
+  - job_name: 'nano-tech'
+    static_configs:
+      - targets: ['nano-tech-service:5000']  # Match your service name and port
+# gemini_integration.py
+import os
+import requests  # For making requests to Gemini's API
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "YOUR_GEMINI_API_ENDPOINT" # Replace with Gemini's API endpoint
+
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        response = requests.get(f"{self.base_url}/search?q={query}", headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"Gemini API request failed: {response.status_code}"}
+
+
+# business/app/business_app.py (modified)
+from flask import Flask, request, jsonify
+from .security_utils import generate_quantum_key
+from .xeus_language import XeusSystemLanguage
+from cryptography.hazmat.primitives import serialization
+from .gemini_integration import GeminiInterface
+
+app = Flask(__name__)
+xeus = XeusSystemLanguage()
+# ... Load encryption keys ...
+
+gemini = GeminiInterface(os.getenv("GEMINI_API_KEY")) # Get API key from environment
+
+@app.route('/search', methods=['GET'])
+def search():
+    query = request.args.get('q')
+    gemini_results = gemini.search(query) # Search Gemini
+    xeus_results = xeus.search(query) # Search XEUS (implementation below)
+    merged = merge_results(gemini_results, xeus_results) # Merge Results
+    return jsonify(merged)
+
+# ...Other routes...
+
+def merge_results(gemini_results, xeus_results):
+  # Sophisticated merging logic would go here, prioritizing 
+  # and potentially combining relevant results from both.
+  return {"gemini": gemini_results, "xeus": xeus_results}
+
+
+# business/app/xeus_language.py (modified)
+# ...Existing XEUS code...
+
+def search(self, query):
+    results = []
+    for iso_code, language_data in self.languages.items():
+      # Implement Search Logic here, taking into account encryption
+      # Look for query terms in language_data.vocabulary (decrypted if necessary)
+      # This may involve complex string matching or vector similarity searches for encrypted data.
+      if query in language_data.vocabulary.values():
+          results.append({"iso_code": iso_code, "match": query})
+    return results
+
+nano_tech/
+├── business/
+│   ├── app/
+│   │   ├── business_app.py       # Main application logic
+│   │   ├── security_utils.py     # Cryptography and security functions
+│   │   ├── xeus_language.py      # XEUS language processing
+│   │   └── gemini_integration.py # Gemini API interaction
+│   ├── requirements.txt
+│   └── Dockerfile
+├── k8s/                              # Kubernetes deployment files
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── hpa.yaml
+│   ├── networkpolicy.yaml
+│   ├── secrets.yaml                 # Kubernetes secrets (keys, etc.)
+│   └── prometheus/
+│       ├── prometheus.yml
+│       └── alerts.yml
+├── db/                              # Database scripts
+│   ├── schema.sql
+│   └── backup.sh
+├── Config/                          # Configuration files
+│   ├── config.json
+│   └── cronjobs.txt
+├── Scripts/                         # Additional scripts
+│   ├── AutoUpdateScene.cs
+│   ├── rotate_secrets.sh
+│   └── database_maintenance.sh
+├── Docs/
+│   ├── architecture.md
+│   └── security.md
+├── prometheus/                     # Prometheus configuration
+│   └── grafana-dashboard.json
+├── .github/                         # GitHub actions
+│   └── workflows/
+│       └── ci-cd.yml
+├── deploy.sh
+├── .env.example
+└── README.md
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = os.getenv("GEMINI_API_ENDPOINT", "DEFAULT_ENDPOINT")  # Use env var for flexibility
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            response = requests.get(
+                f"{self.base_url}/search?q={query}",
+                headers=headers,
+                timeout=10  # Prevent hanging requests
+            )
+            response.raise_for_status()  # Raise HTTP errors (e.g., 404, 500)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Gemini API error: {e}")
+            return {"error": str(e)}
+from fuzzywuzzy import process
+
+def search(self, query):
+    results = []
+    for iso_code, language_data in self.languages.items():
+        # Decrypt vocabulary if encrypted
+        vocabulary = self._decrypt_vocabulary(language_data)  # Implement decryption logic
+        # Fuzzy search for partial matches
+        matches = process.extractBests(query, vocabulary.values(), score_cutoff=80)
+        if matches:
+            results.append({
+                "iso_code": iso_code,
+                "matches": [{"term": term, "score": score} for term, score in matches]
+            })
+    return results
+def merge_results(gemini_results, xeus_results):
+    merged = []
+    # Example: Combine and sort by relevance
+    if "error" not in gemini_results:
+        merged.extend(gemini_results.get("results", []))
+    if "error" not in xeus_results:
+        merged.extend(xeus_results)
+    # Sort by a relevance score (implement scoring logic)
+    merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"results": merged}
+
+# Add security headers
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = "default-src 'self';"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gemini-secrets
+type: Opaque
+data:
+  GEMINI_API_KEY: <base64_encoded_api_key>
+from prometheus_client import Histogram
+
+SEARCH_LATENCY = Histogram('search_latency_seconds', 'Search request latency')
+
+@app.route('/search', methods=['GET'])
+def search():
+    start_time = time.time()
+    # ... existing code ...
+    duration = time.time() - start_time
+    SEARCH_LATENCY.observe(duration)
+    return jsonify(merged)
+import os
+import logging
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class GeminiInterface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = os.getenv("GEMINI_API_ENDPOINT", "https://api.gemini.example.com")  # Use env var for flexibility
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
+    def search(self, query):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            response = requests.get(
+                f"{self.base_url}/search?q={query}",
+                headers=headers,
+                timeout=10  # Prevent hanging requests
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Gemini API error: {e}")
+            return {"error": str(e)}
+flask==2.3.2
+requests==2.31.0
+tenacity==8.2.2
+python-Levenshtein==0.21.0  # For faster fuzzywuzzy
+prometheus-client==0.17.1
+cryptography==41.0.4
+from fuzzywuzzy import process
+
+class XeusSystemLanguage:
+    def __init__(self):
+        self.languages = {}  # Assume this is initialized with encrypted data
+
+    def _decrypt_vocabulary(self, language_data):
+        # Implement decryption logic using cryptography library
+        # Example: decrypt language_data.vocabulary using Fernet
+        return decrypted_vocabulary  # Return decrypted vocabulary as a dictionary
+
+    def search(self, query):
+        results = []
+        for iso_code, language_data in self.languages.items():
+            vocabulary = self._decrypt_vocabulary(language_data)
+            matches = process.extractBests(
+                query,
+                vocabulary.values(),
+                score_cutoff=80,  # Minimum match score (0-100)
+                limit=5  # Max matches per language
+            )
+            if matches:
+                results.append({
+                    "iso_code": iso_code,
+                    "matches": [{"term": term, "score": score} for term, score in matches]
+                })
+        return results
+from flask import Flask, request, jsonify
+from flask_limiter import Limiter  # For rate limiting
+from flask_limiter.util import get_remote_address
+from prometheus_client import Histogram, generate_latest
+from .security_utils import generate_quantum_key
+from .xeus_language import XeusSystemLanguage
+from .gemini_integration import GeminiInterface
+
+app = Flask(__name__)
+limiter = Limiter(app, key_func=get_remote_address, default_limits=["100 per minute"])
+
+# Prometheus Metrics
+SEARCH_LATENCY = Histogram('search_latency_seconds', 'Search request latency')
+
+# Initialize components
+xeus = XeusSystemLanguage()
+# ... Load encryption keys (e.g., from secrets) ...
+
+gemini = GeminiInterface(os.getenv("GEMINI_API_KEY"))
+
+@app.route('/search', methods=['GET'])
+@limiter.limit("50/second")  # Per-second rate limit
+def search():
+    start_time = time.time()
+    query = request.args.get('q', default='', type=str)
+    
+    # Fetch results
+    gemini_results = gemini.search(query)
+    xeus_results = xeus.search(query)
+    
+    # Merge and return
+    merged = merge_results(gemini_results, xeus_results)
+    duration = time.time() - start_time
+    SEARCH_LATENCY.observe(duration)
+    
+    return jsonify(merged)
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return generate_latest()
+
+def merge_results(gemini_results, xeus_results):
+    merged = []
+    # Handle Gemini results (assume "results" key exists)
+    if not isinstance(gemini_results, dict) or "error" in gemini_results:
+        gemini_list = [{"source": "gemini", "data": gemini_results}]
+    else:
+        gemini_list = [{"source": "gemini", "data": item, "score": 0.7} for item in gemini_results.get("results", [])]
+    
+    # Handle XEUS results
+    xeus_list = []
+    for entry in xeus_results:
+        for match in entry["matches"]:
+            xeus_list.append({
+                "source": "xeus",
+                "data": {"iso_code": entry["iso_code"], "term": match["term"]},
+                "score": match["score"] * 0.3  # Weighted score
+            })
+    
+    # Combine and sort by score
+    combined = gemini_list + xeus_list
+    combined.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"results": [item["data"] for item in combined]}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nano-tech-secrets
+type: Opaque
+data:
+  GEMINI_API_KEY: <base64_encoded_api_key>
+  GEMINI_API_ENDPOINT: <base64_encoded_url>
+  ENCRYPTION_KEY: <base64_encoded_encryption_key>
+env:
+  - name: GEMINI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nano-tech-secrets
+        key: GEMINI_API_KEY
+  - name: GEMINI_API_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: nano-tech-secrets
+        key: GEMINI_API_ENDPOINT
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline';"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+import pytest
+from unittest.mock import MagicMock
+from business.app.gemini_integration import GeminiInterface
+
+def test_gemini_search_success():
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"results": ["test"]}
+    mock_response.status_code = 200
+    with patch("requests.get", return_value=mock_response):
+        gemini = GeminiInterface("fake_key")
+        result = gemini.search("test_query")
+        assert result == {"results": ["test"]}
+name: CI/CD Pipeline
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r business/requirements.txt
+      - name: Run tests
+        run: pytest tests/
+      - name: Build Docker image
+        run: docker build -t nano-tech-app:latest -f business/Dockerfile .
+      - name: Push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          registry: docker.io
+          repository: your-username/nano-tech
+          tag: latest
+scrape_configs:
+  - job_name: 'nano-tech'
+    static_configs:
+      - targets: ['nano-tech-service:5000']  # Match your service name and port
